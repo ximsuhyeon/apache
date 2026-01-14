@@ -1,0 +1,83 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: wp-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"   # 호스트에서 접속 가능(필요 시 127.0.0.1:3306:3306 권장)
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wpuser
+      MYSQL_PASSWORD: wppass
+      MYSQL_ROOT_PASSWORD: rootpass
+      TZ: Asia/Seoul
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - wpnet
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30       # ✅ (시간 확보) 30회면 최대 약 300초(5분)까지 대기
+
+  # ✅ DB가 healthy 된 뒤 권한 부여 쿼리를 실행하는 "원샷" 서비스
+  db-grant:
+    image: mysql:8.0
+    container_name: wp-mysql-grant
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - wpnet
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      WP_DB: wordpress
+      WP_USER: wpuser
+      WP_PASS: wppass
+    entrypoint: ["bash", "-lc"]
+    command: >
+      echo "[db-grant] waiting mysql ready..." &&
+      for i in {1..60}; do
+        mysqladmin ping -h db -uroot -p"$MYSQL_ROOT_PASSWORD" --silent && break;
+        echo "[db-grant] not ready yet... ($i/60)"; sleep 2;
+      done &&
+      echo "[db-grant] apply grants..." &&
+      mysql -h db -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
+        CREATE USER IF NOT EXISTS '${WP_USER}'@'%' IDENTIFIED BY '${WP_PASS}';
+        GRANT ALL PRIVILEGES ON ${WP_DB}.* TO '${WP_USER}'@'%';
+        FLUSH PRIVILEGES;
+      " &&
+      echo "[db-grant] done."
+
+  wordpress:
+    image: wordpress:6.5-apache
+    container_name: wp-app
+    depends_on:
+      db:
+        condition: service_healthy
+      db-grant:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppass
+      TZ: Asia/Seoul
+    volumes:
+      - wp_data:/var/www/html
+    networks:
+      - wpnet
+
+networks:
+  wpnet:
+    name: wpnet
+    driver: bridge
+
+volumes:
+  db_data:
+  wp_data:

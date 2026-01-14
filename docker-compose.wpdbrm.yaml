@@ -1,0 +1,93 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: wp-mysql
+    restart: unless-stopped
+
+    # ✅ DB를 외부(호스트)에서 접속하려면 포트 개방
+    ports:
+      - "3306:3306"
+
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wpuser
+      MYSQL_PASSWORD: wppass
+      MYSQL_ROOT_PASSWORD: rootpass
+      TZ: Asia/Seoul
+
+    # ✅ 핵심: DB 데이터를 tmpfs(메모리)에 둬서 "항상 초기화"
+    # 컨테이너가 내려가면 데이터가 사라짐 → 다음 up 때 새 DB 생성
+    tmpfs:
+      - /var/lib/mysql
+
+    networks:
+      - wpnet
+
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # ✅ DB가 뜬 뒤 wpuser 원격(%) 접속 권한을 확실히 부여(매번 실행되지만 안전)
+  db-grant:
+    image: mysql:8.0
+    container_name: wp-mysql-grant
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - wpnet
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      WP_DB: wordpress
+      WP_USER: wpuser
+      WP_PASS: wppass
+    entrypoint: ["bash", "-lc"]
+    command: >
+      echo "[db-grant] waiting mysql ready..." &&
+      for i in {1..60}; do
+        mysqladmin ping -h db -uroot -p"$MYSQL_ROOT_PASSWORD" --silent && break;
+        echo "[db-grant] not ready yet... ($i/60)"; sleep 2;
+      done &&
+      echo "[db-grant] apply grants..." &&
+      mysql -h db -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
+        CREATE USER IF NOT EXISTS '${WP_USER}'@'%' IDENTIFIED BY '${WP_PASS}';
+        GRANT ALL PRIVILEGES ON ${WP_DB}.* TO '${WP_USER}'@'%';
+        FLUSH PRIVILEGES;
+      " &&
+      echo "[db-grant] done."
+
+  wordpress:
+    image: wordpress:6.5-apache
+    container_name: wp-app
+    depends_on:
+      db:
+        condition: service_healthy
+      db-grant:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppass
+      TZ: Asia/Seoul
+
+    # 워드프레스 파일은 유지하고 싶으면 볼륨 유지(원하면 이것도 제거 가능)
+    volumes:
+      - wp_data:/var/www/html
+
+    networks:
+      - wpnet
+
+networks:
+  wpnet:
+    name: wpnet
+    driver: bridge
+
+volumes:
+  wp_data:
