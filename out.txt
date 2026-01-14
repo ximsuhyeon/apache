@@ -1,0 +1,79 @@
+Ask Gordon sera
+Containers
+Images
+
+Volumes
+Kubernetes
+
+Builds
+
+Models
+
+MCP Toolkit aera
+
+Docker Hub
+
+Docker Scout
+
+Extensions
+
+© Containers ive feedback @
+
+Container CPU usage
+0.00% / 600% (6 cPUs available)
+
+Name
+docker-vue
+
+re10-frontend
+
+ooooao |9
+<
+eee
+
+re10-signaling
+
+Oo e
+
+Container ID
+
+92f69fD0c156
+
+e5e54377add4
+
+Only show running containers
+
+nginx:alpine
+
+docker-vue-signaling
+
+Container memory usage
+
+17.48MB / 7.54GB
+
+Port(s)
+
+8080:80 (3
+
+3001:3001 (3
+
+CPU (%)
+0%
+0%
+
+0%
+
+Memory usage...
+
+17.48MB / 15.45¢
+
+7.18MB / 7.72GB
+
+10.3MB /7.726B
+
+Actions
+
+Sand
+
+cs¢
+
