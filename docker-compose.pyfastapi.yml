@@ -1,0 +1,23 @@
+services:
+  api:
+    build: .
+    container_name: board-api
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    # 개발 중이면 아래 주석 해제 (코드 변경 자동 반영)
+    # volumes:
+    #   - ./main.py:/app/main.py:ro
+    # command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# (선택) FastAPI CORS 설정이 8001을 허용하므로,
+# 프론트 HTML을 같이 띄우고 싶으면 아래 static 서비스를 사용하세요.
+#
+#  static:
+#    image: nginx:alpine
+#    container_name: board-static
+#    ports:
+#      - "8001:80"
+#    volumes:
+#      - ./web:/usr/share/nginx/html:ro
+#    restart: unless-stopped
