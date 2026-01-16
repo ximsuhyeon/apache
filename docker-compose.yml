@@ -1,51 +1,39 @@
-version: "3.9"
+version: "3.8"
 
 services:
-  gitlab:
-    image: gitlab/gitlab-ce:latest
-    container_name: gitlab
-    hostname: gitlab
-    restart: unless-stopped
-    shm_size: "256m"
-    environment:
-      GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab:80'
-        gitlab_rails['gitlab_shell_ssh_port'] = 2222
-        nginx['listen_port'] = 80
-        nginx['listen_https'] = false
-    ports:
-      - "8088:80"    # GitLab Web (host:container)
-      - "2222:22"    # GitLab SSH
-    volumes:
-      - gitlab_config:/etc/gitlab
-      - gitlab_logs:/var/log/gitlab
-      - gitlab_data:/var/opt/gitlab
-    networks:
-      - cicd
-
   jenkins:
     image: jenkins/jenkins:lts-jdk17
     container_name: jenkins
     restart: unless-stopped
-    user: root
-    ports:
-      - "8080:8080"   # Jenkins Web
-      - "50000:50000" # Jenkins inbound agent (필요 시)
-    volumes:
-      - jenkins_home:/var/jenkins_home
-      # Jenkins에서 docker build/run 하고 싶으면 (호스트 도커 소켓 공유)
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - cicd
-    depends_on:
-      - gitlab
 
-networks:
-  cicd:
-    driver: bridge
+    # 핵심: docker.sock permission denied 방지 (실습용 가장 확실한 방법)
+    user: "0:0"
+
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+
+    environment:
+      - TZ=Asia/Seoul
+
+    volumes:
+      # Jenkins 데이터(잡/설정/플러그인) 영구 저장
+      - jenkins_home:/var/jenkins_home
+
+      # 핵심: 호스트 Docker 데몬 사용
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # Maven 캐시(속도 개선)
+      - maven_cache:/var/jenkins_home/.m2
+
+    # 핵심: GitLab이 실제로 붙어있는 네트워크로 고정 (네 출력 기준: apache_cicd)
+    networks:
+      - apache_cicd
 
 volumes:
-  gitlab_config:
-  gitlab_logs:
-  gitlab_data:
   jenkins_home:
+  maven_cache:
+
+networks:
+  apache_cicd:
+    external: true
